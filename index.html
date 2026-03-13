@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Técnico</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Dexie.js for IndexedDB -->
+    <script src="https://unpkg.com/dexie@4.0.8/dist/dexie.js"></script>
+    <!-- Chart.js for Dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fa-solid fa-screwdriver-wrench"></i>
+                    <span>CRM Técnico</span>
+                </div>
+                <button class="mobile-toggle" id="mobileToggle">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#" class="nav-item active" data-view="dashboard"><i class="fa-solid fa-chart-pie"></i> <span>Dashboard</span></a></li>
+                <li><a href="#" class="nav-item" data-view="work-orders"><i class="fa-solid fa-clipboard-list"></i> <span>Ordens de Serviço</span></a></li>
+                <li><a href="#" class="nav-item" data-view="services"><i class="fa-solid fa-list-check"></i> <span>Serviços</span></a></li>
+                <li><a href="#" class="nav-item" data-view="financial"><i class="fa-solid fa-wallet"></i> <span>Financeiro</span></a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="top-header">
+                <button class="mobile-toggle-header" id="mobileToggleHeader">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <h1 id="pageTitle">Dashboard</h1>
+            </header>
+
+            <div class="views-container">
+                
+                <!-- VIEW: Dashboard -->
+                <section id="view-dashboard" class="view active">
+                    <div class="filters-bar">
+                        <div class="filter-group">
+                            <label for="dashPeriodFilter">Período:</label>
+                            <select id="dashPeriodFilter">
+                                <option value="all">Todo o período</option>
+                                <option value="today">Hoje</option>
+                                <option value="week">Esta Semana</option>
+                                <option value="month" selected>Este Mês</option>
+                                <option value="year">Este Ano</option>
+                                <option value="custom">Por Data</option>
+                            </select>
+                        </div>
+                        <div class="filter-group" id="dashCustomDateGroup" style="display: none;">
+                            <input type="date" id="dashStartDate" class="form-control" title="Data Inicial">
+                            <span>até</span>
+                            <input type="date" id="dashEndDate" class="form-control" title="Data Final">
+                            <button class="btn btn-primary" id="btnDashFilterDate">Filtrar</button>
+                        </div>
+                        <button class="btn btn-primary" id="btnExportData">
+                            <i class="fa-solid fa-file-csv"></i> Exportar Dados
+                        </button>
+                    </div>
+
+                    <!-- Financial KPIs -->
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-icon bg-green">
+                                <i class="fa-solid fa-arrow-trend-up"></i>
+                            </div>
+                            <div class="kpi-info">
+                                <h3>Total Entradas</h3>
+                                <div class="kpi-value text-green" id="kpiEntradas">€ 0,00</div>
+                            </div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-icon bg-red">
+                                <i class="fa-solid fa-arrow-trend-down"></i>
+                            </div>
+                            <div class="kpi-info">
+                                <h3>Total Saídas</h3>
+                                <div class="kpi-value text-red" id="kpiSaidas">€ 0,00</div>
+                            </div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-icon bg-blue">
+                                <i class="fa-solid fa-wallet"></i>
+                            </div>
+                            <div class="kpi-info">
+                                <h3>Saldo</h3>
+                                <div class="kpi-value" id="kpiSaldo">€ 0,00</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Service KPIs -->
+                    <div class="charts-container mt-4">
+                        <div class="chart-card">
+                            <h3>Resumo de Serviços</h3>
+                            <div class="kpi-grid mb-mobile">
+                                <div class="kpi-card" style="padding:15px">
+                                    <div class="kpi-info">
+                                        <h3>Total de Serviços</h3>
+                                        <div class="kpi-value" id="kpiTotalServicos">0</div>
+                                    </div>
+                                </div>
+                                <div class="kpi-card" style="padding:15px">
+                                    <div class="kpi-info">
+                                        <h3>Taxa de Sucesso</h3>
+                                        <div class="kpi-value text-green" id="kpiTaxaSucesso">0%</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="canvas-container mt-4">
+                                <canvas id="successChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-card">
+                            <h3>Últimas Ordens de Serviço</h3>
+                            <ul class="recent-list" id="dashRecentOrders">
+                                <!-- Populated by JS -->
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- VIEW: Services -->
+                <section id="view-services" class="view">
+                    <div class="action-bar">
+                        <h2>Tipos de Serviço</h2>
+                        <button class="btn btn-primary" id="btnNewService">
+                            <i class="fa-solid fa-plus"></i> Novo Serviço
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Serviço</th>
+                                    <th>Descrição</th>
+                                    <th class="actions-col">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="servicesTableBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- VIEW: Work Orders -->
+                <section id="view-work-orders" class="view">
+                    <div class="action-bar flex-wrap">
+                        <div class="filter-controls">
+                            <input type="text" id="filterWOSearch" class="form-control" placeholder="Buscar WO...">
+                            <input type="date" id="filterWODate" class="form-control" title="Filtrar por data">
+                            <select id="filterWOService" class="form-control">
+                                <option value="">Todos os Serviços</option>
+                                <!-- Populated by JS -->
+                            </select>
+                            <select id="filterWOStatus" class="form-control">
+                                <option value="">Todos os Status</option>
+                                <option value="Sucesso">Sucesso</option>
+                                <option value="Sem Sucesso">Sem Sucesso</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" id="btnNewWO">
+                            <i class="fa-solid fa-plus"></i> Nova Ordem
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>WO</th>
+                                    <th>Data</th>
+                                    <th>Serviço</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                    <th class="actions-col">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="woTableBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- VIEW: Financial -->
+                <section id="view-financial" class="view">
+                    <div class="action-bar flex-wrap">
+                        <div class="filter-controls">
+                            <div class="filter-group">
+                                <label for="filterFinPeriod">Período:</label>
+                                <select id="filterFinPeriod" class="form-control">
+                                    <option value="all">Todo o período</option>
+                                    <option value="today">Hoje</option>
+                                    <option value="week">Esta Semana</option>
+                                    <option value="month" selected>Este Mês</option>
+                                    <option value="year">Este Ano</option>
+                                    <option value="custom">Por Data</option>
+                                </select>
+                            </div>
+                            <div class="filter-group" id="finCustomDateGroup" style="display: none;">
+                                <input type="date" id="finStartDate" class="form-control" title="Data Inicial">
+                                <span>até</span>
+                                <input type="date" id="finEndDate" class="form-control" title="Data Final">
+                                <button class="btn btn-primary" id="btnFinFilterDate">Filtrar</button>
+                            </div>
+                            <select id="filterFinType" class="form-control">
+                                <option value="">Todas Entradas/Saídas</option>
+                                <option value="entrada">Entradas</option>
+                                <option value="saida">Saídas</option>
+                            </select>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-success" id="btnNewIncome">
+                                <i class="fa-solid fa-plus"></i> Nova Entrada
+                            </button>
+                            <button class="btn btn-danger" id="btnNewExpense">
+                                <i class="fa-solid fa-minus"></i> Nova Saída
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Tipo</th>
+                                    <th>Descrição</th>
+                                    <th>Valor</th>
+                                    <th class="actions-col">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="financialTableBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+
+    <!-- Modal: Service -->
+    <div class="modal-overlay" id="modalService">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3 id="modalServiceTitle">Novo Serviço</h3>
+                <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="formService">
+                    <input type="hidden" id="serviceId">
+                    <div class="form-group">
+                        <label for="serviceName">Nome do Serviço *</label>
+                        <input type="text" id="serviceName" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="serviceDesc">Descrição (Opcional)</label>
+                        <textarea id="serviceDesc" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-outline cancel-modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Work Order -->
+    <div class="modal-overlay" id="modalWO">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalWOTitle">Nova Ordem de Serviço</h3>
+                <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="formWO">
+                    <input type="hidden" id="woId">
+                    <div class="form-group">
+                        <label for="woCode">Número/Código WO *</label>
+                        <input type="text" id="woCode" class="form-control" required placeholder="Ex: 12345">
+                    </div>
+                    <div class="form-group">
+                        <label for="woService">Serviço Realizado *</label>
+                        <select id="woService" class="form-control" required>
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="woDate">Data *</label>
+                        <input type="date" id="woDate" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="woValue">Valor da OS (€)</label>
+                        <input type="number" id="woValue" class="form-control" step="0.01" min="0" placeholder="0.00">
+                        <small style="color:var(--text-muted); font-size: 0.8rem; display:block; margin-top:4px;">Se preenchido, lançaremos automaticamente uma Entrada financeira no seu caixa.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="woStatus">Status *</label>
+                        <select id="woStatus" class="form-control" required>
+                            <option value="Sucesso">Sucesso</option>
+                            <option value="Sem Sucesso">Sem Sucesso</option>
+                        </select>
+                    </div>
+                    <div class="error-msg" id="woErrorMsg"></div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-outline cancel-modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Financial -->
+    <div class="modal-overlay" id="modalFinancial">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3 id="modalFinancialTitle">Registro Financeiro</h3>
+                <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="formFinancial">
+                    <input type="hidden" id="finId">
+                    <input type="hidden" id="finType">
+                    <div class="form-group">
+                        <label for="finDate">Data *</label>
+                        <input type="date" id="finDate" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="finDesc">Descrição *</label>
+                        <input type="text" id="finDesc" class="form-control" required placeholder="Ex: Pagamento Cliente X">
+                    </div>
+                    <div class="form-group">
+                        <label for="finValue">Valor (€) *</label>
+                        <input type="number" id="finValue" class="form-control" step="0.01" min="0.01" required placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label for="finService">Vincular a um Serviço? (Opcional)</label>
+                        <select id="finService" class="form-control">
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-outline cancel-modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" id="btnSaveFinancial">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirm Delete -->
+    <div class="modal-overlay" id="modalConfirm">
+        <div class="modal modal-sm" style="max-width: 350px; text-align: center;">
+            <div class="modal-body" style="padding: 30px 20px;">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size: 3rem; color: var(--warning-color); margin-bottom: 15px;"></i>
+                <h3 style="margin-bottom: 10px;">Atenção</h3>
+                <p id="confirmMessage" style="color: var(--text-muted); margin-bottom: 25px;">Tem certeza que deseja excluir?</p>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button class="btn btn-outline cancel-modal">Cancelar</button>
+                    <button class="btn btn-danger" id="btnConfirmAction">Sim, Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Scripts -->
+    <script src="js/db.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
