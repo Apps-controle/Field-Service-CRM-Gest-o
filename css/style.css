@@ -289,6 +289,12 @@ body {
     transform: scale(0.98);
 }
 
+.btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
 .btn-primary {
     background-color: var(--primary-color);
     color: white;

@@ -703,8 +703,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Export functionality via SheetJS
-        document.getElementById('btnExportData').addEventListener('click', async () => {
+        document.getElementById('btnExportData').addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
+            const originalContent = btn.innerHTML;
+            
             try {
+                // UI Feedback: Loading state
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando...';
+                
                 // Fetch data from IndexedDB
                 const wos = await db.workOrders.toArray();
                 const fins = await db.financials.toArray();
@@ -744,33 +751,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 XLSX.utils.book_append_sheet(wb, wsFins, "Financeiro");
 
                 // 4. Generate file and trigger download
-                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
-
-                function s2ab(s) {
-                    const buf = new ArrayBuffer(s.length);
-                    const view = new Uint8Array(buf);
-                    for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
-                    return buf;
-                }
-
-                const blob = new Blob([s2ab(wbout)], { type: "application/octet-stream" });
+                // Using 'array' type for better compatibility and avoiding manual binary conversions
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
+                a.style.display = 'none';
                 a.href = url;
                 a.download = "CRMTecnico_Export.xlsx";
                 document.body.appendChild(a);
                 a.click();
                 
+                // Alert to confirm for mobile users
+                alert("Exportação iniciada! Verifique a barra de downloads ou notificações do seu navegador.");
+
                 setTimeout(() => {
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(url);
                 }, 100);
-                
-                // Alert user of success (optional but helpful)
-                // alert("Exportação concluída! Verifique seu arquivo .xlsx");
+
             } catch (err) {
                 console.error("Export Error:", err);
                 alert("Ocorreu um erro ao exportar os dados para Excel: " + err.message);
+            } finally {
+                // Restore button state
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
             }
         });
     }
