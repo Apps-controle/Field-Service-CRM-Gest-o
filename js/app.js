@@ -744,7 +744,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 XLSX.utils.book_append_sheet(wb, wsFins, "Financeiro");
 
                 // 4. Generate file and trigger download
-                XLSX.writeFile(wb, "CRMTecnico_Export.xlsx");
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+
+                function s2ab(s) {
+                    const buf = new ArrayBuffer(s.length);
+                    const view = new Uint8Array(buf);
+                    for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
+                    return buf;
+                }
+
+                const blob = new Blob([s2ab(wbout)], { type: "application/octet-stream" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "CRMTecnico_Export.xlsx";
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 100);
                 
                 // Alert user of success (optional but helpful)
                 // alert("Exportação concluída! Verifique seu arquivo .xlsx");

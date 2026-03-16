@@ -602,6 +602,16 @@ body {
         margin-bottom: 10px;
     }
     
+    .filters-bar {
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    
+    .filters-bar .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
     .filter-controls {
         width: 100%;
     }
