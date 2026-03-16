@@ -702,6 +702,9 @@ document.addEventListener('DOMContentLoaded', () => {
              loadFinancials();
         });
 
+        // Helper to detect mobile devices
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
         // Export functionality via SheetJS
         document.getElementById('btnExportData').addEventListener('click', async (e) => {
             const btn = e.currentTarget;
@@ -713,9 +716,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando...';
                 
                 // Fetch data from IndexedDB
-                const wos = await db.workOrders.toArray();
-                const fins = await db.financials.toArray();
-                const svcs = await db.services.toArray();
+                const [wos, fins, svcs] = await Promise.all([
+                    db.workOrders.toArray(),
+                    db.financials.toArray(),
+                    db.services.toArray()
+                ]);
+
                 const svcMap = {};
                 svcs.forEach(s => svcMap[s.id] = s.name);
 
@@ -753,38 +759,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 const blob = new Blob([wbout], { type: mimeType });
 
                 // 5. Trigger download/share
-                // Check for Web Share API support (Mobile priority)
-                if (navigator.canShare && navigator.share) {
-                    const file = new File([blob], fileName, { type: mimeType });
-                    if (navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            files: [file],
-                            title: 'Exportação CRM Técnico',
-                            text: 'Planilha de Ordens de Serviço e Financeiro'
-                        });
-                        return; // Successfully shared
+                const triggerDownload = () => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                    }, 100);
+                };
+
+                // Use Web Share API ONLY on mobile and IF supported
+                if (isMobile && navigator.canShare && navigator.share) {
+                    try {
+                        const file = new File([blob], fileName, { type: mimeType });
+                        if (navigator.canShare({ files: [file] })) {
+                            await navigator.share({
+                                files: [file],
+                                title: 'Exportação CRM Técnico',
+                                text: 'Planilha de Ordens de Serviço e Financeiro'
+                            });
+                            return; // Success
+                        }
+                    } catch (shareErr) {
+                        console.warn("Share failed, falling back to download:", shareErr);
+                        // Fallback automatically if share is cancelled or fails
                     }
                 }
 
-                // Fallback: Desktop Download
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.style.display = 'none';
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(url);
-                }, 100);
+                // Default / Fallback: Desktop or non-sharing mobile
+                triggerDownload();
 
             } catch (err) {
                 console.error("Export Error:", err);
-                if (err.name !== 'AbortError') { // Don't alert if user cancelled share sheet
-                    alert("Ocorreu um erro ao exportar os dados: " + err.message);
-                }
+                alert("Ocorreu um erro ao exportar os dados: " + err.message);
             } finally {
                 // Restore button state
                 btn.disabled = false;
