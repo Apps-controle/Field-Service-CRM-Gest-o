@@ -705,91 +705,52 @@ document.addEventListener('DOMContentLoaded', () => {
         // Export functionality via SheetJS
         document.getElementById('btnExportData').addEventListener('click', async () => {
             try {
-                // Show a loading/starting message (optional, but good for feedback)
+                // Fetch data from IndexedDB
                 const wos = await db.workOrders.toArray();
                 const fins = await db.financials.toArray();
                 const svcs = await db.services.toArray();
                 const svcMap = {};
                 svcs.forEach(s => svcMap[s.id] = s.name);
 
-                // Enhance WO data
-                const expWOs = wos.map(wo => ({
-                    'ID': wo.id,
-                    'WO': wo.wo,
+                // 1. Prepare Work Orders Sheet
+                const dataWOs = wos.map(wo => ({
+                    'ID OS': wo.id,
+                    'Código WO': wo.wo,
                     'Data': wo.date,
                     'Serviço': svcMap[wo.service_id] || 'Desconhecido',
+                    'Valor (€)': wo.value || 0,
                     'Status': wo.status
                 }));
 
-                // Enhance Financial Data
-                const expFins = fins.map(f => ({
-                    'ID': f.id,
+                // 2. Prepare Financial Sheet
+                const dataFins = fins.map(f => ({
+                    'ID Reg.': f.id,
                     'Data': f.date,
                     'Tipo': f.type === 'entrada' ? 'Entrada' : 'Saída',
                     'Descrição': f.description,
-                    'Valor': f.value,
-                    'Relacionado a (Serviço)': f.service_id ? svcMap[f.service_id] : 'Nenhum'
+                    'Valor (€)': f.value,
+                    'Serviço Relacionado': f.service_id ? svcMap[f.service_id] : 'Nenhum'
                 }));
 
-
-                // Create CSV Strings
-                function arrayToCSV(objArray) {
-                    if (objArray.length === 0) return '';
-                    const array = typeof objArray !== 'object' ? JSON.parse(objArray) : objArray;
-                    let str = '';
-                    let row = '';
-                    
-                    // Headers
-                    for (let index in array[0]) {
-                        row += index + ';';
-                    }
-                    row = row.slice(0, -1);
-                    str += row + '\r\n';
-                    
-                    // Data
-                    for (let i = 0; i < array.length; i++) {
-                        let line = '';
-                        for (let index in array[i]) {
-                            if (line !== '') line += ';';
-                            // Escape quotes and format strings
-                            let val = array[i][index] !== null ? array[i][index].toString() : '';
-                            val = val.replace(/"/g, '""');
-                            line += `"${val}"`;
-                        }
-                        str += line + '\r\n';
-                    }
-                    return str;
-                }
-
-                const csvWOs = arrayToCSV(expWOs.length > 0 ? expWOs : [{'Aviso': 'Nenhuma ordem de serviço cadastrada'}]);
-                const csvFins = arrayToCSV(expFins.length > 0 ? expFins : [{'Aviso': 'Nenhum registro financeiro cadastrado'}]);
+                // 3. Create Workbook and Worksheets
+                const wb = XLSX.utils.book_new();
                 
-                // Combine them with a separator
-                const finalCSV = "--- ORDENS DE SERVICO ---\r\n" + csvWOs + "\r\n\r\n--- FINANCEIRO ---\r\n" + csvFins;
+                // Add WO Sheet
+                const wsWOs = XLSX.utils.json_to_sheet(dataWOs.length > 0 ? dataWOs : [{'Aviso': 'Nenhuma ordem de serviço cadastrada'}]);
+                XLSX.utils.book_append_sheet(wb, wsWOs, "Ordens de Serviço");
+                
+                // Add Financial Sheet
+                const wsFins = XLSX.utils.json_to_sheet(dataFins.length > 0 ? dataFins : [{'Aviso': 'Nenhum registro financeiro cadastrado'}]);
+                XLSX.utils.book_append_sheet(wb, wsFins, "Financeiro");
 
-                // Download using Data URI to bypass Blob restrictions on local file:// execution
-                // We add the UTF-8 BOM (%EF%BB%BF) so Excel recognizes the encoding automatically
-                const csvDataUri = 'data:text/csv;charset=utf-8,%EF%BB%BF' + encodeURIComponent(finalCSV);
+                // 4. Generate file and trigger download
+                XLSX.writeFile(wb, "CRMTecnico_Export.xlsx");
                 
-                const a = document.createElement("a");
-                a.style.display = 'none';
-                a.href = csvDataUri;
-                a.download = "CRMTecnico_Export.csv";
-                document.body.appendChild(a);
-                
-                // Trigger the click
-                a.click();
-                
-                // Cleanup
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                }, 100);
-
-                // Alert user of success
-                alert("Exportação iniciada com sucesso! Verifique o arquivo CRMTecnico_Export.csv na sua pasta de Downloads.");
+                // Alert user of success (optional but helpful)
+                // alert("Exportação concluída! Verifique seu arquivo .xlsx");
             } catch (err) {
                 console.error("Export Error:", err);
-                alert("Ocorreu um erro ao exportar os dados: " + err.message);
+                alert("Ocorreu um erro ao exportar os dados para Excel: " + err.message);
             }
         });
     }
