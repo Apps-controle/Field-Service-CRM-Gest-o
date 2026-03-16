@@ -712,12 +712,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando...';
                 
+                // alert("DEBUG: Iniciando coleta de dados...");
+                
                 // Fetch data from IndexedDB
                 const wos = await db.workOrders.toArray();
                 const fins = await db.financials.toArray();
                 const svcs = await db.services.toArray();
                 const svcMap = {};
                 svcs.forEach(s => svcMap[s.id] = s.name);
+
+                // alert("DEBUG: Dados coletados (" + wos.length + " OS, " + fins.length + " Fin). Gerando Excel...");
 
                 // 1. Prepare Work Orders Sheet
                 const dataWOs = wos.map(wo => ({
@@ -741,39 +745,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 3. Create Workbook and Worksheets
                 const wb = XLSX.utils.book_new();
-                
-                // Add WO Sheet
                 const wsWOs = XLSX.utils.json_to_sheet(dataWOs.length > 0 ? dataWOs : [{'Aviso': 'Nenhuma ordem de serviço cadastrada'}]);
                 XLSX.utils.book_append_sheet(wb, wsWOs, "Ordens de Serviço");
-                
-                // Add Financial Sheet
                 const wsFins = XLSX.utils.json_to_sheet(dataFins.length > 0 ? dataFins : [{'Aviso': 'Nenhum registro financeiro cadastrado'}]);
                 XLSX.utils.book_append_sheet(wb, wsFins, "Financeiro");
 
+                // alert("DEBUG: Planilha gerada. Tentando disparar download...");
+
                 // 4. Generate file and trigger download
-                // Using 'array' type for better compatibility and avoiding manual binary conversions
-                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-                const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                // Try Base64 approach which is sometimes better for mobile in-app browsers
+                const b64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+                const url = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + b64;
                 
-                const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
-                a.style.display = 'none';
                 a.href = url;
                 a.download = "CRMTecnico_Export.xlsx";
                 document.body.appendChild(a);
                 a.click();
                 
-                // Alert to confirm for mobile users
-                alert("Exportação iniciada! Verifique a barra de downloads ou notificações do seu navegador.");
+                alert("Exportação processada! Verifique agora se o arquivo baixou. Se não baixou, o navegador pode estar bloqueando o pop-up ou download.");
 
                 setTimeout(() => {
                     document.body.removeChild(a);
-                    window.URL.revokeObjectURL(url);
                 }, 100);
 
             } catch (err) {
                 console.error("Export Error:", err);
-                alert("Ocorreu um erro ao exportar os dados para Excel: " + err.message);
+                alert("Erro Crítico na Exportação: " + err.message);
             } finally {
                 // Restore button state
                 btn.disabled = false;
