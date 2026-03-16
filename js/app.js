@@ -814,6 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.innerHTML = originalContent;
             }
         });
+    }
 
     // Bootstrap
     init();
