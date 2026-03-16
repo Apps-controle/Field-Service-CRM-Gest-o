@@ -712,16 +712,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando...';
                 
-                // alert("DEBUG: Iniciando coleta de dados...");
-                
                 // Fetch data from IndexedDB
                 const wos = await db.workOrders.toArray();
                 const fins = await db.financials.toArray();
                 const svcs = await db.services.toArray();
                 const svcMap = {};
                 svcs.forEach(s => svcMap[s.id] = s.name);
-
-                // alert("DEBUG: Dados coletados (" + wos.length + " OS, " + fins.length + " Fin). Gerando Excel...");
 
                 // 1. Prepare Work Orders Sheet
                 const dataWOs = wos.map(wo => ({
@@ -750,29 +746,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 const wsFins = XLSX.utils.json_to_sheet(dataFins.length > 0 ? dataFins : [{'Aviso': 'Nenhum registro financeiro cadastrado'}]);
                 XLSX.utils.book_append_sheet(wb, wsFins, "Financeiro");
 
-                // alert("DEBUG: Planilha gerada. Tentando disparar download...");
+                // 4. Generate file
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                const fileName = "CRMTecnico_Export.xlsx";
+                const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                const blob = new Blob([wbout], { type: mimeType });
 
-                // 4. Generate file and trigger download
-                // Try Base64 approach which is sometimes better for mobile in-app browsers
-                const b64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-                const url = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + b64;
-                
+                // 5. Trigger download/share
+                // Check for Web Share API support (Mobile priority)
+                if (navigator.canShare && navigator.share) {
+                    const file = new File([blob], fileName, { type: mimeType });
+                    if (navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: 'Exportação CRM Técnico',
+                            text: 'Planilha de Ordens de Serviço e Financeiro'
+                        });
+                        return; // Successfully shared
+                    }
+                }
+
+                // Fallback: Desktop Download
+                const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
+                a.style.display = 'none';
                 a.href = url;
-                a.download = "CRMTecnico_Export.xlsx";
+                a.download = fileName;
                 document.body.appendChild(a);
                 a.click();
                 
-                alert("Exportação processada! Verifique agora se o arquivo baixou. Se não baixou, o navegador pode estar bloqueando o pop-up ou download.");
-
                 setTimeout(() => {
                     document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
                 }, 100);
 
             } catch (err) {
                 console.error("Export Error:", err);
-                alert("Erro Crítico na Exportação: " + err.message);
+                if (err.name !== 'AbortError') { // Don't alert if user cancelled share sheet
+                    alert("Ocorreu um erro ao exportar os dados: " + err.message);
+                }
             } finally {
+                // Restore button state
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            }
+        });
                 // Restore button state
                 btn.disabled = false;
                 btn.innerHTML = originalContent;
