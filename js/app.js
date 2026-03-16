@@ -709,13 +709,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('btnExportData').addEventListener('click', async (e) => {
             const btn = e.currentTarget;
             const originalContent = btn.innerHTML;
+            let phase = "Iniciada";
             
             try {
-                // UI Feedback: Loading state
+                // UI Feedback
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando...';
                 
-                // Fetch data from IndexedDB
+                // 1. Data Fetching Phase
+                phase = "Coleta de Dados (DB)";
                 const [wos, fins, svcs] = await Promise.all([
                     db.workOrders.toArray(),
                     db.financials.toArray(),
@@ -725,7 +727,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const svcMap = {};
                 svcs.forEach(s => svcMap[s.id] = s.name);
 
-                // 1. Prepare Work Orders Sheet
+                // 2. Data Preparation Phase
+                phase = "Preparação das Planilhas";
                 const dataWOs = wos.map(wo => ({
                     'ID OS': wo.id,
                     'Código WO': wo.wo,
@@ -735,7 +738,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Status': wo.status
                 }));
 
-                // 2. Prepare Financial Sheet
                 const dataFins = fins.map(f => ({
                     'ID Reg.': f.id,
                     'Data': f.date,
@@ -745,21 +747,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Serviço Relacionado': f.service_id ? svcMap[f.service_id] : 'Nenhum'
                 }));
 
-                // 3. Create Workbook and Worksheets
+                // 3. Spreadsheet Generation Phase
+                phase = "Geração do Arquivo Excel";
                 const wb = XLSX.utils.book_new();
                 const wsWOs = XLSX.utils.json_to_sheet(dataWOs.length > 0 ? dataWOs : [{'Aviso': 'Nenhuma ordem de serviço cadastrada'}]);
                 XLSX.utils.book_append_sheet(wb, wsWOs, "Ordens de Serviço");
                 const wsFins = XLSX.utils.json_to_sheet(dataFins.length > 0 ? dataFins : [{'Aviso': 'Nenhum registro financeiro cadastrado'}]);
                 XLSX.utils.book_append_sheet(wb, wsFins, "Financeiro");
 
-                // 4. Generate file
+                // 4. Binary Conversion Phase
+                phase = "Conversão Binária";
                 const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
                 const fileName = "CRMTecnico_Export.xlsx";
                 const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
                 const blob = new Blob([wbout], { type: mimeType });
 
-                // 5. Trigger download/share
-                const triggerDownload = () => {
+                // 5. Trigger System Phase
+                phase = "Disparo do Download/Share";
+                
+                const triggerStandardDownload = () => {
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
                     a.style.display = 'none';
@@ -770,40 +776,44 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
                         document.body.removeChild(a);
                         window.URL.revokeObjectURL(url);
-                    }, 100);
+                    }, 1500); // Increased delay for mobile safety
                 };
 
-                // Use Web Share API ONLY on mobile and IF supported
-                if (isMobile && navigator.canShare && navigator.share) {
+                // Use Web Share API if Mobile and Supported
+                if (isMobile && navigator.share) {
                     try {
                         const file = new File([blob], fileName, { type: mimeType });
-                        if (navigator.canShare({ files: [file] })) {
+                        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                            phase = "Compartilhamento (Web Share)";
                             await navigator.share({
                                 files: [file],
                                 title: 'Exportação CRM Técnico',
-                                text: 'Planilha de Ordens de Serviço e Financeiro'
+                                text: 'Planilha enviada pelo CRM'
                             });
-                            return; // Success
+                            return; 
                         }
                     } catch (shareErr) {
                         console.warn("Share failed, falling back to download:", shareErr);
-                        // Fallback automatically if share is cancelled or fails
                     }
                 }
 
-                // Default / Fallback: Desktop or non-sharing mobile
-                triggerDownload();
+                // Default Fallback
+                phase = "Download Tradicional (Fallback)";
+                triggerStandardDownload();
+                
+                // Final Success Feedback for mobile specifically
+                if (isMobile) {
+                    alert("Comando de download enviado! Verifique as notificações ou pasta de Downloads do seu aparelho.");
+                }
 
             } catch (err) {
-                console.error("Export Error:", err);
-                alert("Ocorreu um erro ao exportar os dados: " + err.message);
+                console.error(`Erro em ${phase}:`, err);
+                alert(`ERRO NA EXPORTAÇÃO\nEtapa: ${phase}\nMensagem: ${err.message || err.toString()}`);
             } finally {
-                // Restore button state
                 btn.disabled = false;
                 btn.innerHTML = originalContent;
             }
         });
-    }
 
     // Bootstrap
     init();
