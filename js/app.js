@@ -765,21 +765,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 5. Trigger System Phase
                 phase = "Disparo do Download/Share";
                 
-                // Super Robust Trigger
                 const triggerRobustDownload = (isMobileDevice) => {
-                    let url;
-                    if (isMobileDevice) {
-                        // Base64 is often more compatible with mobile "Save As" handlers
-                        const b64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-                        url = "data:" + mimeType + ";base64," + b64;
-                    } else {
-                        url = URL.createObjectURL(blob);
-                    }
-
+                    const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
                     a.style.display = 'none';
                     a.href = url;
                     a.download = fileName;
+                    
+                    // Security/Reliability for mobile
+                    if (isMobileDevice) {
+                        a.target = "_blank";
+                        a.rel = "noopener";
+                    }
+
                     document.body.appendChild(a);
                     a.click();
                     
@@ -787,33 +785,41 @@ document.addEventListener('DOMContentLoaded', () => {
                         setTimeout(() => {
                             document.body.removeChild(a);
                             window.URL.revokeObjectURL(url);
-                        }, 100);
+                        }, 200);
+                    } else {
+                        // On mobile, keep the URL alive for 15s to allow system dialogs to finish
+                        setTimeout(() => {
+                            if (document.body.contains(a)) document.body.removeChild(a);
+                            window.URL.revokeObjectURL(url);
+                        }, 15000);
                     }
                 };
 
-                // Use Web Share API if Mobile and Supported
+                // Use Web Share API if Mobile and Supported (Modern priority)
                 if (isMobile && navigator.share) {
                     try {
-                        const file = new File([blob], fileName, { type: mimeType });
+                        const file = new File([wbout], fileName, { 
+                            type: mimeType,
+                            lastModified: Date.now()
+                        });
+                        
                         if (navigator.canShare && navigator.canShare({ files: [file] })) {
                             phase = "Compartilhamento (Web Share)";
                             await navigator.share({
                                 files: [file],
-                                title: 'Exportação CRM Técnico',
-                                text: 'Planilha enviada pelo CRM'
+                                title: 'Relatório CRM Técnico',
+                                text: 'Exportação de dados em Excel'
                             });
                             return; 
                         }
                     } catch (shareErr) {
-                        console.warn("Share failed, falling back to robust download:", shareErr);
+                        console.warn("Share failed, falling back to robust blob download:", shareErr);
                     }
                 }
 
-                // Default Fallback: Base64 for mobile, Blob for desktop
+                // Default Fallback: Persistent Blob for mobile, Standard for desktop
                 phase = "Download Robusto (Fallback)";
                 triggerRobustDownload(isMobile);
-                
-                // Note: Removed the alert that appeared BEFORE the download logic finishes on some browsers
 
             } catch (err) {
                 console.error(`Erro em ${phase}:`, err);
