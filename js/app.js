@@ -765,18 +765,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 5. Trigger System Phase
                 phase = "Disparo do Download/Share";
                 
-                const triggerStandardDownload = () => {
-                    const url = URL.createObjectURL(blob);
+                // Super Robust Trigger
+                const triggerRobustDownload = (isMobileDevice) => {
+                    let url;
+                    if (isMobileDevice) {
+                        // Base64 is often more compatible with mobile "Save As" handlers
+                        const b64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+                        url = "data:" + mimeType + ";base64," + b64;
+                    } else {
+                        url = URL.createObjectURL(blob);
+                    }
+
                     const a = document.createElement("a");
                     a.style.display = 'none';
                     a.href = url;
                     a.download = fileName;
                     document.body.appendChild(a);
                     a.click();
-                    setTimeout(() => {
-                        document.body.removeChild(a);
-                        window.URL.revokeObjectURL(url);
-                    }, 1500); // Increased delay for mobile safety
+                    
+                    if (!isMobileDevice) {
+                        setTimeout(() => {
+                            document.body.removeChild(a);
+                            window.URL.revokeObjectURL(url);
+                        }, 100);
+                    }
                 };
 
                 // Use Web Share API if Mobile and Supported
@@ -793,18 +805,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             return; 
                         }
                     } catch (shareErr) {
-                        console.warn("Share failed, falling back to download:", shareErr);
+                        console.warn("Share failed, falling back to robust download:", shareErr);
                     }
                 }
 
-                // Default Fallback
-                phase = "Download Tradicional (Fallback)";
-                triggerStandardDownload();
+                // Default Fallback: Base64 for mobile, Blob for desktop
+                phase = "Download Robusto (Fallback)";
+                triggerRobustDownload(isMobile);
                 
-                // Final Success Feedback for mobile specifically
-                if (isMobile) {
-                    alert("Comando de download enviado! Verifique as notificações ou pasta de Downloads do seu aparelho.");
-                }
+                // Note: Removed the alert that appeared BEFORE the download logic finishes on some browsers
 
             } catch (err) {
                 console.error(`Erro em ${phase}:`, err);
