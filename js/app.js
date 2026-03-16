@@ -791,11 +791,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.innerHTML = originalContent;
             }
         });
-                // Restore button state
-                btn.disabled = false;
-                btn.innerHTML = originalContent;
-            }
-        });
     }
 
     // Bootstrap
